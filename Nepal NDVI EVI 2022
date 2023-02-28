@@ -1,0 +1,35 @@
+/ Define a region of pixels to reduce and chart a time series for
+var region = nplbnd; 
+
+// Define an image collection time series to chart
+var modis = ee.ImageCollection('MODIS/061/MOD13Q1')
+  .filter(ee.Filter.date('2000-01-01', '2023-01-31'))
+  .filterBounds(region)
+  .select(['NDVI', 'EVI']);
+// define function to scale the VI value
+function scale_factor (image){
+  return image.multiply (0.0001).copyProperties(image,['system:time_start'])
+}
+var scaled_vi = modis.map(scale_factor);
+
+// Define the chart and print it to the console.
+var chart = ui.Chart.image.series({
+  imageCollection: scaled_vi,
+  region: region.geometry().bounds(),
+  reducer: ee.Reducer.mean(),
+  scale: 500,
+  xProperty: 'system:time_start'
+})
+.setSeriesNames(['EVI', 'NDVI'])
+.setOptions({
+  title: 'Average Vegetation Index Value',
+  hAxis: {title: 'Date', titleTextStyle: {italic: false, bold: true}},
+  vAxis: {
+    title: 'Vegetation index',
+    titleTextStyle: {italic: false, bold: true}
+  },
+  lineWidth: 2,
+  colors: ['e37d05', '1d6b99'],
+  curveType: 'function'
+});
+print(chart);
