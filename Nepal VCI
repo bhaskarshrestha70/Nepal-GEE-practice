@@ -1,0 +1,138 @@
+var AOI = npl;
+var collection = ee.ImageCollection('MODIS/061/MOD13Q1').select('NDVI').filterBounds(AOI); 
+
+/*select reference period for baseline (by default this is the full period of MODIS data availability, but end
+date may need to be updated*/
+var reference = collection.filterDate('2000-01-01', '2022-12-31')
+  .sort('system:time_start');
+  
+/*select timeframe of interest and filter images from each year for this timeframe. This could be a single month
+or season when you want to investigate trends in drought severity. You will need to enter the day numbers*/
+var baseline = reference.filter(ee.Filter.dayOfYear(60,334)).filterBounds(AOI);
+
+/*select the specific year for which you want to calculate the average VCI. The timeframe should also match the
+timeframe (month/season) selected above.*/
+var drought = collection.filterDate('2002-03-01', '2022-12-31').filterBounds(AOI)
+  .sort('system:time_start');
+
+//enter the name of the month and year entered above
+var m = "Annual - March to Nov";
+var y = "2022";
+
+//enter name of the region you are analysing, with no spaces 
+var region = "Nepal";
+
+//----------------------------calculate VCI for selected AOI-------------------------//
+
+//vci equation for period of interest
+var vci_drought = ((drought.mean()).subtract(baseline.min())).divide((baseline.max()).subtract(baseline.min())).clip(AOI);
+
+//----------------------------create VCI trend graphs for selected AOI---------------------//
+
+//function to iterate through chosen time period (e.g. month) for each year in sequence and calculate average Vegetation condition Index
+var years = ee.List.sequence(2002, 2022);
+print("years",years);
+
+var lt_vci = ee.ImageCollection.fromImages(
+      years.map(function (y) {
+        return baseline.filter(ee.Filter.calendarRange(y, y, 'year'))
+                    .select('NDVI').mean()
+                    .subtract(baseline.min())
+                    .divide(baseline.max().subtract(baseline.min()))
+                    .set('year', y)
+                    .rename('VCI');
+}));
+print("lt_vci",lt_vci);
+
+// Define the chart and print it to the console.
+var chart =
+    ui.Chart.image
+        .series({
+          imageCollection: lt_vci,
+          region: AOI,
+          reducer: ee.Reducer.mean(),
+          scale: 500,
+          xProperty: 'year'
+        })
+        .setSeriesNames(['VCI'])
+        .setOptions({
+          title: 'Average VCI ('+ m + '), ' + region,
+          hAxis: {title: 'Year', titleTextStyle: {italic: false, bold: true}},
+          vAxis: {
+            title: 'VCI',
+            titleTextStyle: {italic: false, bold: true}
+          },
+          lineWidth: 2,
+          colors: ['e37d05', '1d6b99'],
+          curveType: 'function'
+        });
+print(chart);
+
+var chart_all =
+    ui.Chart.image
+        .seriesByRegion({
+          imageCollection: lt_vci,
+          regions: nplphy,
+          reducer: ee.Reducer.mean(),
+          scale: 500,
+          xProperty: 'year',
+          seriesProperty: 'DESCRIPTIO' 
+        })
+        .setSeriesNames(['VCI'])
+        .setOptions({
+          title: 'Average Vegetation Condition Index by region ('+ m + '), ' + region,
+          hAxis: {title: 'Date', titleTextStyle: {italic: false, bold: true}},
+          vAxis: {
+            title: 'VCI',
+            titleTextStyle: {italic: false, bold: true}
+          },
+          lineWidth: 1,
+//          colors: ['e37d05', '1d6b99'],
+          curveType: 'function'
+        });
+print(chart_all);
+
+
+// Select multiple reducers / statistics
+var reducers_all = ee.Reducer.mean()
+                                .combine(ee.Reducer.count(), null, true)
+                                .combine(ee.Reducer.min(), null, true)
+                                .combine(ee.Reducer.max(), null, true)
+                                .combine(ee.Reducer.stdDev(), null, true);
+//convert annual mean VCI values for period of interest to table
+var lt_vci_means = lt_vci.map(function(image){
+  return image.reduceRegions({
+    collection: AOI, //here you can put a sub-district shapefile to get values for each district
+    reducer:reducers_all,
+    scale: 500
+  }).map(function(f) {
+    
+    // Add a date property to each output feature.
+     return f.set('year', image.get('year'));
+  });
+});
+
+var lt_vci_table = lt_vci_means.flatten();
+print(lt_vci_table);
+
+// Select only points that overlay with images
+var lt_vci_table1 = lt_vci_table
+                  .filterMetadata('count', "not_equals", 0);
+
+//----------------------------Export data to Google Drive----------------------------//
+Export.table.toDrive({
+  collection: lt_vci_table1,
+  description: "lt_vci_table_"+ region + '_' + m + '_' + y,
+  fileFormat: 'CSV',
+  selectors: ["ADM0_EN","ADM1_EN","ADM2_EN","year", "mean","min","max","stdDev"] //change these if necessary based on fields in AOI shapefile
+});
+
+// export geotiffs for VCI data to Google Drive
+// Export.image.toDrive({
+//   image: vci_drought,
+//   description: 'vci_'+ '_' + region + '_' + m + '_' + y,
+// //  region:
+//   scale: 500
+// });
+
+print("See tasks tab to generate exports");
