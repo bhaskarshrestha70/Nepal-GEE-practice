@@ -1,0 +1,33 @@
+// nepal ko lagi 3 yrs range permissible, contitnetal ko lagi one year range only
+var start = '2000-01-01';
+var end = '2022-12-31';
+var chirps = ee.ImageCollection('UCSB-CHG/CHIRPS/PENTAD');
+var chirpsTotal = chirps
+                        .filterDate(start, end)
+                        .reduce(ee.Reducer.mean());
+var region = npl;
+var palette = ['#ffffcc', '#a1dab4', '#41b6c4', '#2c7fb8', '#253494'];
+var visParams = {min:0, max:50, palette: palette};
+
+Map.addLayer (chirpsTotal.clip(region), visParams, 'Mean Precipitation')
+Map.addLayer (region, {}, 'Region of Interest')
+
+var chirpsFiltered = chirps
+                        .filterDate(start, end)
+                        
+print(ui.Chart.image.series({
+  imageCollection: chirpsFiltered,
+          
+          region:region.geometry().bounds(),
+          reducer: ee.Reducer.mean(),
+          scale: 5000,
+          
+          xProperty: 'system:time_start'
+          })
+  .setChartType('LineChart')
+  .setOptions({
+    title: 'monthly ppt - RoI',
+    hAxis: {title:'Time'},
+    vAxis: {title:'Ppt (mm)'},
+    linewidth: 2,
+  }))
