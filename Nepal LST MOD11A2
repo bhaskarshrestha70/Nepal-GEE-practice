@@ -1,0 +1,41 @@
+//study Area
+var SA = nplbnd; 
+Map.addLayer(nplbnd)
+
+// Import LST image collection.
+var modis = ee.ImageCollection('MODIS/061/MOD11A2');
+// Define a date range; here, start date is defined and end date is determined by advancing 1 year from start date.
+var start = ee.Date('2000-01-01');
+var dateRange = ee.DateRange(start, start.advance(23, 'year'));
+
+// Filter the LST collection to include only images intersecting the desired date range.
+var mod11a2 = modis.filterDate(dateRange);
+// Select only the 1km day LST data band.
+var modLSTday = mod11a2.select('LST_Day_1km');
+
+// Scale to Kelvin and convert to Celsius, set image acquisition time.
+var modLSTc = modLSTday.map(function(img) {
+  return img
+    .multiply(0.02)
+    .subtract(273.15)
+    .copyProperties(img, ['system:time_start']);
+});
+
+// Chart time series of LST for HKH in 2015.
+var ts1 = ui.Chart.image.series({
+  imageCollection: modLSTc,
+  region: SA.geometry().bounds(),
+  reducer: ee.Reducer.mean(),
+  scale: 1000,
+  xProperty: 'system:time_start'})
+  .setOptions({
+    title: 'LST Time Series',
+    vAxis: {title: 'LST Celsius'}});
+print(ts1);
+// Calculate 8-day mean temperature.
+var clippedLSTc = modLSTc.mean().clip(SA);
+// Add clipped image layer to the map.
+Map.addLayer(clippedLSTc, {
+  min: -10, max: 50,
+  palette: ['blue', 'limegreen', 'yellow', 'darkorange', 'red']},
+  'Mean temperature');
