@@ -1,0 +1,53 @@
+var dataset = ee.ImageCollection('MODIS/061/MOD13Q1')
+                  .filter(ee.Filter.date('2019-12-05', '2019-12-31'))
+                  .filterBounds(npl)
+                  .select('NDVI');
+print (dataset);
+function scale_factor(image){
+  return image.multiply(0.0001).copyProperties(image,['system:time_start'])
+}
+var scaled_ndvi = dataset.map(scale_factor);
+
+// clip images to the polygon boundary
+var clipped = scaled_ndvi.map(function (image) {
+  return image.clip(npl)
+})
+
+// ndvi visualization
+var ndviVis = { min: 0,max: 1,palette: ['red', 'yellow', 'green']};
+
+Map.setCenter(80,25, 4);
+Map.addLayer(clipped.mean().clip(npl),ndviVis,'NDVI')
+
+// Define and print chart
+var chart = ui.Chart.image.series({
+  imageCollection: scaled_ndvi,
+  region: npl.geometry().bounds(),
+  reducer: ee.Reducer.mean(),
+  scale: 1000,
+  xProperty: 'system:time_start'
+})
+.setSeriesNames(['NDVI'])
+.setOptions({
+  title: 'Average Vegetation Index Value by Date',
+  hAxis: {title: 'Date', titleTextStyle: {italic: false, bold: true}},
+  vAxis: {
+    title: 'Vegetation index',
+    titleTextStyle: {italic: false, bold: true}
+  },
+  lineWidth: 2,
+  colors: ['e37d05'],
+  curveType: 'function'
+});
+print(chart);
+
+// Export NDVI data as GeoTIFF files to Google Drive
+Export.image.toDrive({
+  image: clipped.toBands(),
+  description: 'MOD13Q1_NDVI_Nepal',
+  folder: 'GEE',
+  region: npl,
+  crs: 'EPSG:32644',
+  scale: 250,
+  maxPixels: 1e13
+});
