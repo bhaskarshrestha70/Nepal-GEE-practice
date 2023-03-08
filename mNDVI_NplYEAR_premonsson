@@ -1,0 +1,64 @@
+// import the batch tool
+var batch = require('users/fitoprincipe/geetools:batch')
+
+var roi = npl;
+
+// Load MODIS NDVI collection
+var modis = ee.ImageCollection('MODIS/006/MOD13Q1')
+  .select('NDVI') // select only NDVI band
+  .filterDate('2000-01-01', '20022-12-31')// filter by date range
+  .map(function(img){
+    var rescaled_NDVI = img.select('NDVI')
+                            .multiply(0.0001)
+                            .rename('NDVI_rescaled')
+                            .copyProperties(img,['system:time_start']);
+            return img.addBands(rescaled_NDVI);
+  }); 
+var modisPremonsoon = modis.filter(ee.Filter.calendarRange(3,6,'month'));
+print (modisPremonsoon,'','MODIS images')
+// Define a function to calculate mean NDVI for each year
+var meanNDVI = function(year) {
+    var yearCol = modisPremonsoon.filter(ee.Filter.calendarRange(year, year, 'year'));// Filter collection by year
+   var meanImage = yearCol.mean().clip(roi); // Calculate mean NDVI over the region of interest
+    var yearBand = ee.Image.constant(year).toInt16().rename('year');// Add a band with the year value
+   return meanImage.addBands(yearBand); // Return the image with NDVI and year bands
+};
+
+// Apply the function over a list of years from 2000 to ----
+var years = ee.List.sequence(2000, 2022);
+var annualNDVI = ee.ImageCollection.fromImages(years.map(meanNDVI));
+print (annualNDVI,'','mean_NDVI')
+
+// Download images for a set region
+batch.Download.ImageCollection.toDrive(annualNDVI, 'NDVI', 
+                {region: roi,
+                scale:250,
+                crs: 'EPSG:32644',
+                type: 'float'})
+                
+Run your Google Earth Engine code;
+Wait until all the tasks are listed (the Run buttons are shown);
+Click f12 to bring up console;
+
+function runTaskList(){
+// var tasklist = document.getElementsByClassName('task local type-EXPORT_IMAGE awaiting-user-config');
+// for (var i = 0; i < tasklist.length; i++)
+//         tasklist[i].getElementsByClassName('run-button')[0].click();
+$$('.run-button' ,$$('ee-task-pane')[0].shadowRoot).forEach(function(e) {
+     e.click();
+})
+}
+runTaskList();
+
+function confirmAll() {
+// var ok = document.getElementsByClassName('goog-buttonset-default goog-buttonset-action');
+// for (var i = 0; i < ok.length; i++)
+//     ok[i].click();
+$$('ee-table-config-dialog, ee-image-config-dialog').forEach(function(e) {
+     var eeDialog = $$('ee-dialog', e.shadowRoot)[0]
+     var paperDialog = $$('paper-dialog', eeDialog.shadowRoot)[0]
+     $$('.ok-button', paperDialog)[0].click()
+})
+}
+
+confirmAll();                 
