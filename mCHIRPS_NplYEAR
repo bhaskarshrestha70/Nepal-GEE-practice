@@ -24,7 +24,7 @@ print (annualrainfall,'','annual_rainfall')
 // Download images for a set region
 batch.Download.ImageCollection.toDrive(annualrainfall, 'CHIRPS_Rainfall', 
                 {region: roi,
-                scale:1000,
+                scale:5000,
                 crs: 'EPSG:32644',
                 type: 'float'})
 
