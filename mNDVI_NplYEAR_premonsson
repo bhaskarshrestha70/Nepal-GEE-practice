@@ -14,7 +14,7 @@ var modis = ee.ImageCollection('MODIS/006/MOD13Q1')
                             .copyProperties(img,['system:time_start']);
             return img.addBands(rescaled_NDVI);
   }); 
-var modisPremonsoon = modis.filter(ee.Filter.calendarRange(3,6,'month'));
+var modisPremonsoon = modis.filter(ee.Filter.calendarRange(3,5,'month'));
 print (modisPremonsoon,'','MODIS images')
 // Define a function to calculate mean NDVI for each year
 var meanNDVI = function(year) {
